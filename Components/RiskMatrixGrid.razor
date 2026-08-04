@@ -1,0 +1,42 @@
+@* 3x3 likelihood/impact risk matrix. Index 0=Low, 1=Medium, 2=High for both axes. *@
+<div class="risk-matrix">
+    <div class="risk-axis-y">
+        <span>High</span><span>Medium</span><span>Low</span>
+    </div>
+    <div class="risk-grid">
+        @for (int row = 2; row >= 0; row--)
+        {
+            @for (int col = 0; col <= 2; col++)
+            {
+                var cellClass = CellClass(row, col);
+                var itemsHere = Items.Where(i => i.LikelihoodIndex == row && i.ImpactIndex == col).ToList();
+                <div class="risk-cell @cellClass">
+                    @foreach (var item in itemsHere)
+                    {
+                        <span class="risk-bubble" title="@item.Label">@item.Rank</span>
+                    }
+                </div>
+            }
+        }
+    </div>
+    <div class="risk-axis-x">
+        <span>Low</span><span>Medium</span><span>High</span>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<RiskMatrixItem> Items { get; set; } = Array.Empty<RiskMatrixItem>();
+
+    private static string CellClass(int likelihood, int impact)
+    {
+        var score = likelihood + impact; // 0..4
+        return score switch
+        {
+            >= 4 => "risk-severe",
+            3 => "risk-high",
+            2 => "risk-medium",
+            1 => "risk-low",
+            _ => "risk-minimal",
+        };
+    }
+}

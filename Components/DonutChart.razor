@@ -1,0 +1,41 @@
+@* Renders a donut chart purely with CSS conic-gradient. *@
+<div class="donut-wrap">
+    <div class="donut-ring" style="background: conic-gradient(@GradientStops);">
+        <div class="donut-hole">
+            <span class="donut-total">@Total.ToString("N0")</span>
+            <span class="donut-total-label">Total</span>
+        </div>
+    </div>
+    <ul class="donut-legend">
+        @foreach (var seg in Segments)
+        {
+            <li>
+                <span class="dot" style="background:@seg.ColorHex"></span>
+                <span class="legend-label">@seg.Label</span>
+                <span class="legend-value">@seg.Count.ToString("N0") (@seg.Percent%)</span>
+            </li>
+        }
+    </ul>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<DonutSegment> Segments { get; set; } = Array.Empty<DonutSegment>();
+    [Parameter] public int Total { get; set; }
+
+    private string GradientStops
+    {
+        get
+        {
+            var parts = new List<string>();
+            double cursor = 0;
+            foreach (var seg in Segments)
+            {
+                var start = cursor;
+                var end = cursor + seg.Percent;
+                parts.Add($"{seg.ColorHex} {start}% {end}%");
+                cursor = end;
+            }
+            return string.Join(", ", parts);
+        }
+    }
+}

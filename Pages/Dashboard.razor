@@ -1,0 +1,411 @@
+@page "/"
+@implements IDisposable
+@inject DashboardDataService Data
+@inject IJSRuntime JS
+
+<div class="dashboard">
+
+    @* ===== TOP NAV ===== *@
+    <header class="topnav">
+        <div class="brand">
+            <h1>HSE SYSTEM TWIN</h1>
+            <p>Real-time visibility. Predict risks. Protect people. Preserve environment.</p>
+        </div>
+        <nav class="topnav-actions">
+            <div class="nav-item"><span>🔄</span><small>Real-time Sync</small></div>
+            <div class="nav-item"><span>🎯</span><small>AI Risk Prediction</small></div>
+            <div class="nav-item"><span>🧭</span><small>Scenario Simulation</small></div>
+            <div class="nav-item"><span>🔺</span><small>Predictive Alerts</small></div>
+            <div class="nav-item"><span>✅</span><small>Compliance Tracking</small></div>
+            <div class="nav-item"><span>⏪</span><small>Incident Replay</small></div>
+            <div class="nav-item"><span>📈</span><small>KPI Monitoring</small></div>
+            <div class="nav-item"><span>📑</span><small>Reports & Analytics</small></div>
+        </nav>
+        <div class="brand-logo">
+            HSE Digital Twin
+            <div class="live-clock">
+                <div class="clock-time">@_now.ToString("HH:mm:ss")</div>
+                <div class="clock-date">@_now.ToString("dddd, dd MMM yyyy")</div>
+            </div>
+        </div>
+    </header>
+
+    <div class="dashboard-body">
+
+        @* ===== LEFT: TOPICS ===== *@
+        <aside class="panel topics-panel">
+            <h2 class="panel-title accent">HSE TOPICS</h2>
+            <ul class="topic-list">
+                @foreach (var t in S.Topics)
+                {
+                    <li>
+                        <span class="topic-icon">@t.Icon</span>
+                        <div>
+                            <div class="topic-title">@t.Title</div>
+                            <div class="topic-sub">@t.Subtitle</div>
+                        </div>
+                        <span class="chevron">›</span>
+                    </li>
+                }
+            </ul>
+        </aside>
+
+        @* ===== CENTER: TWIN VIEW + KPI + TREND ===== *@
+        <section class="center-column">
+
+            <div class="panel twin-panel">
+                <div class="panel-header">
+                    <h2 class="panel-title">HSE DIGITAL TWIN VIEW – <span class="accent">LIVE</span></h2>
+                </div>
+                <div class="twin-body">
+                    <div class="layer-box">
+                        <h3>LAYER VIEW</h3>
+                        @foreach (var layer in new[] { "Hazards", "Incidents", "Controls", "Compliance", "Monitoring", "Emergency", "Environment" })
+                        {
+                            <label class="layer-check"><input type="checkbox" checked /> @layer</label>
+                        }
+                    </div>
+
+                    <div class="twin-canvas" @ref="TwinCanvasRef"
+                        @onmousedown="OnPanStart" @onmousemove="OnPanMove"
+                        @onmouseup="OnPanEnd" @onmouseleave="OnPanEnd"
+                        @onwheel="OnWheelZoom" @onwheel:preventDefault="true"
+                        style="cursor:@CanvasCursor">
+
+                    <div class="twin-viewport" style="transform: translate(@(_panX.ToString(System.Globalization.CultureInfo.InvariantCulture))px, @(_panY.ToString(System.Globalization.CultureInfo.InvariantCulture))px) scale(@(_zoom.ToString(System.Globalization.CultureInfo.InvariantCulture)));">
+                        <img src="images/facility-twin.png" alt="Facility digital twin" class="twin-bg-image" />
+                        @foreach (var m in S.TwinMarkers)
+                        {
+                            <span class="twin-marker @MarkerClass(m.Status)"
+                                style="left:@(m.XPercent)%; top:@(m.YPercent)%;">
+                                @MarkerGlyph(m.Status)
+                            </span>
+                        }
+                    </div>
+
+    <div class="twin-controls">
+        <button class="twin-btn @(_panModeActive ? "active" : "")" title="Pan" @onclick="TogglePanMode" @onclick:stopPropagation="true">🖐️</button>
+        <button class="twin-btn" title="Zoom out" @onclick="ZoomOut" @onclick:stopPropagation="true">🔍−</button>
+        <button class="twin-btn" title="Zoom in" @onclick="ZoomIn" @onclick:stopPropagation="true">🔍+</button>
+        <button class="twin-btn" title="Fullscreen" @onclick="ToggleFullscreen" @onclick:stopPropagation="true">⛶</button>
+        <button class="twin-btn" title="Reset view" @onclick="ResetView" @onclick:stopPropagation="true">⟲</button>
+    </div>
+</div>
+
+                    <div class="legend-box">
+                        <h3>LEGEND</h3>
+                        <div class="legend-item"><span class="dot safe"></span> Safe</div>
+                        <div class="legend-item"><span class="dot atrisk"></span> At Risk</div>
+                        <div class="legend-item"><span class="dot critical"></span> Critical</div>
+                        <div class="legend-item"><span class="dot info"></span> Info</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel kpi-panel">
+                <h2 class="panel-title">HSE KPI DASHBOARD</h2>
+                <div class="kpi-grid">
+                    @foreach (var k in S.KpiTiles)
+                    {
+                        <div class="kpi-tile">
+                            <div class="kpi-icon">@k.Icon</div>
+                            <div class="kpi-label">@k.Label</div>
+                            <div class="kpi-value">@k.Value <span class="@(k.ChangePercent >= 0 ? "change-good" : "change-bad")">@ArrowFor(k.ChangePercent) @Math.Abs(k.ChangePercent)%</span></div>
+                            @if (k.Note is not null)
+                            {
+                                <div class="kpi-note">@k.Note</div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="row-4">
+                <div class="panel">
+                    <h2 class="panel-title">INCIDENT TREND (YTD)</h2>
+                    <TrendLineChart Labels="@S.IncidentTrend.Select(p => p.Month).ToList()"
+                                     SeriesList="@TrendSeries" />
+                    <div class="chart-legend">
+                        <span><i style="background:#e53935"></i>Recordable</span>
+                        <span><i style="background:#1e88e5"></i>Near Miss</span>
+                        <span><i style="background:#fdd835"></i>First Aid</span>
+                        <span><i style="background:#8e24aa"></i>Medical Treatment</span>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h2 class="panel-title">INCIDENT CATEGORY (YTD)</h2>
+                    <DonutChart Segments="@S.IncidentCategories.Select(c => new DonutSegment(c.Label, (int)Math.Round(S.IncidentCategoryTotal * c.Percent / 100.0), (int)c.Percent, c.ColorHex)).ToList()"
+                                Total="@S.IncidentCategoryTotal" />
+                </div>
+
+                <div class="panel">
+                    <h2 class="panel-title">ENVIRONMENTAL PERFORMANCE (YTD)</h2>
+                    <div class="env-grid">
+                        @foreach (var e in S.EnvironmentalStats)
+                        {
+                            <div class="env-tile">
+                                <div class="env-icon">@e.Icon</div>
+                                <div class="env-value">@e.Value</div>
+                                <div class="env-label">@e.Label</div>
+                                <div class="@((e.DownIsGood ? e.ChangePercent <= 0 : e.ChangePercent >= 0) ? "change-good" : "change-bad")">@ArrowFor(e.ChangePercent) @Math.Abs(e.ChangePercent)%</div>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h2 class="panel-title">RISK MATRIX (TOP 5)</h2>
+                    <div class="risk-matrix-row">
+                        <RiskMatrixGrid Items="@S.RiskMatrix" />
+                        <ul class="risk-legend">
+                            @foreach (var r in S.RiskMatrix)
+                            {
+                                <li><span class="risk-num">@r.Rank</span>@r.Label</li>
+                            }
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        @* ===== RIGHT: OVERVIEW + ALERTS + HEATMAP ===== *@
+        <aside class="right-column">
+            <div class="panel">
+                <h2 class="panel-title">HSE OVERVIEW (YTD)</h2>
+                <div class="overview-grid">
+                    @foreach (var o in S.OverviewStats)
+                    {
+                        <div class="overview-tile">
+                            <div class="overview-value">@o.Value</div>
+                            <div class="overview-label">@o.Label</div>
+                            @if (!string.IsNullOrEmpty(o.SubLabel))
+                            {
+                                <div class="overview-sub">@o.SubLabel</div>
+                            }
+                            else if (o.ChangePercent != 0)
+                            {
+                                <div class="@(o.IsGood ? "change-good" : "change-bad")">@ArrowFor(o.ChangePercent) @Math.Abs(o.ChangePercent)%</div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <h2 class="panel-title">LIVE ALERTS</h2>
+                    <a class="view-all">View All</a>
+                </div>
+                <ul class="alert-list">
+                    @foreach (var a in S.LiveAlerts)
+                    {
+                        <li class="alert-item alert-@a.Severity.ToString().ToLower()">
+                            <span class="alert-badge">@a.Severity</span>
+                            <div>
+                                <div class="alert-title">@a.Title</div>
+                                <div class="alert-loc">@a.Location</div>
+                            </div>
+                            <span class="alert-time">@a.MinutesAgoLabel</span>
+                        </li>
+                    }
+                </ul>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <h2 class="panel-title">RISK HEATMAP</h2>
+                    <select class="heatmap-select" @bind="_riskHeatmapMode">
+                        <option value="risk">Risk Level</option>
+                        <option value="incidents">Incident Density</option>
+                        <option value="near-miss">Near Miss Density</option>
+                    </select>
+                </div>
+                <div class="heatmap-box">
+                    <img src="images/facility-floorplan.png" alt="Facility floor plan" class="heatmap-floorplan" />
+                    <div class="heatmap-gradient"></div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    @* ===== BOTTOM ROW ===== *@
+    <div class="row-5">
+        <div class="panel">
+            <h2 class="panel-title">PERMIT STATUS</h2>
+            <DonutChart Segments="@S.PermitStatus" Total="@S.PermitTotal" />
+        </div>
+
+        <div class="panel">
+            <h2 class="panel-title">TRAINING STATUS</h2>
+            <DonutChart Segments="@S.TrainingStatus" Total="@S.TrainingTotal" />
+        </div>
+
+        <div class="panel">
+            <h2 class="panel-title">EMERGENCY READINESS</h2>
+            <div class="emergency-grid">
+                @foreach (var e in S.EmergencySystems)
+                {
+                    <div class="emergency-tile">
+                        <div class="emergency-icon">@e.Icon</div>
+                        <div class="emergency-label">@e.Label</div>
+                        <div class="emergency-status">@e.Status</div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2 class="panel-title">COMPLIANCE CALENDAR</h2>
+            <ul class="calendar-list">
+                @foreach (var c in S.ComplianceCalendar)
+                {
+                    <li><span class="cal-date">@c.Date</span>@c.Title</li>
+                }
+            </ul>
+            <a class="view-all">View Calendar →</a>
+        </div>
+
+        <div class="panel">
+            <h2 class="panel-title">DOCUMENTS & REPORTS</h2>
+            <ul class="doc-list">
+                @foreach (var d in S.Documents)
+                {
+                    <li>📄 @d.Title <small>(@d.DateLabel)</small></li>
+                }
+            </ul>
+            <a class="view-all">View All →</a>
+        </div>
+
+        <div class="panel">
+            <h2 class="panel-title">SYSTEM INTEGRATIONS</h2>
+            <ul class="integration-list">
+                @foreach (var i in S.SystemIntegrations)
+                {
+                    <li>@i.Icon @i.Label <span class="connected">Connected</span></li>
+                }
+            </ul>
+        </div>
+    </div>
+
+    @* ===== FOOTER ===== *@
+    <footer class="footer">
+        <div class="footer-title">CONNECTED SYSTEMS</div>
+        <div class="footer-items">
+            @foreach (var c in S.ConnectedSystemsFooter)
+            {
+                <div class="footer-item"><span>@c.Icon</span><div>@c.Label<br /><small class="connected">Connected</small></div></div>
+            }
+        </div>
+        <div class="footer-updated">
+            Last Updated: @S.LastUpdated.ToString("dd MMM yyyy HH:mm")
+            <span>🔄</span>
+        </div>
+    </footer>
+</div>
+
+@code {
+    private DashboardSnapshot S => Data.Snapshot;
+    private string _riskHeatmapMode = "risk";
+    // ---- Digital twin pan / zoom / fullscreen state ----
+    private ElementReference TwinCanvasRef;
+    private double _zoom = 1.0;
+    private const double MinZoom = 0.5, MaxZoom = 3.0, ZoomStep = 0.2;
+    private double _panX = 0, _panY = 0;
+    private bool _panModeActive = false;
+    private bool _isPanning = false;
+    private double _lastMouseX, _lastMouseY;
+
+    private void TogglePanMode() => _panModeActive = !_panModeActive;
+
+    private string CanvasCursor => _isPanning ? "grabbing" : (_panModeActive ? "grab" : "default");
+
+    private void ZoomIn() => _zoom = Math.Min(MaxZoom, Math.Round(_zoom + ZoomStep, 2));
+
+    private void ZoomOut() => _zoom = Math.Max(MinZoom, Math.Round(_zoom - ZoomStep, 2));
+
+    private void OnWheelZoom(WheelEventArgs e)
+    {
+        if (e.DeltaY < 0) ZoomIn();
+        else if (e.DeltaY > 0) ZoomOut();
+    }
+
+    private void OnPanStart(MouseEventArgs e)
+    {
+        if (!_panModeActive) return;
+        _isPanning = true;
+        _lastMouseX = e.ClientX;
+        _lastMouseY = e.ClientY;
+    }
+
+    private void OnPanMove(MouseEventArgs e)
+    {
+        if (!_isPanning) return;
+        _panX += e.ClientX - _lastMouseX;
+        _panY += e.ClientY - _lastMouseY;
+        _lastMouseX = e.ClientX;
+        _lastMouseY = e.ClientY;
+    }
+
+    private void OnPanEnd(MouseEventArgs e) => _isPanning = false;
+    private void ResetView()
+    {
+    _zoom = 1.0;
+    _panX = 0;
+    _panY = 0;
+    _panModeActive = false;
+    }
+    private async Task ToggleFullscreen()
+    {
+        await JS.InvokeVoidAsync("twinView.toggleFullscreen", TwinCanvasRef);
+    }
+    // ---- end twin view state ----
+
+    private List<TrendLineChart.SeriesData> TrendSeries => new()
+    {
+        new("Recordable", "#e53935", S.IncidentTrend.Select(p => p.Recordable).ToList()),
+        new("Near Miss", "#1e88e5", S.IncidentTrend.Select(p => p.NearMiss).ToList()),
+        new("First Aid", "#fdd835", S.IncidentTrend.Select(p => p.FirstAid).ToList()),
+        new("Medical Treatment", "#8e24aa", S.IncidentTrend.Select(p => p.MedicalTreatment).ToList()),
+    };
+
+    private DateTime _now = DateTime.Now;
+    private System.Threading.Timer? _clockTimer;
+
+    protected override void OnInitialized()
+    {
+        Data.OnChange += Refresh;
+        _clockTimer = new System.Threading.Timer(_ =>
+        {
+            _now = DateTime.Now;
+            InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
+    }
+
+    private void Refresh() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Data.OnChange -= Refresh;
+        _clockTimer?.Dispose();
+    }
+
+    private static string MarkerClass(RiskStatus s) => s switch
+    {
+        RiskStatus.Safe => "marker-safe",
+        RiskStatus.AtRisk => "marker-atrisk",
+        RiskStatus.Critical => "marker-critical",
+        _ => "marker-info",
+    };
+
+    private static string MarkerGlyph(RiskStatus s) => s switch
+    {
+        RiskStatus.Safe => "✓",
+        RiskStatus.AtRisk => "!",
+        RiskStatus.Critical => "!",
+        _ => "i",
+    };
+
+    private static string ArrowFor(double pct) => pct >= 0 ? "▲" : "▼";
+}

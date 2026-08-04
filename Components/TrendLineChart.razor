@@ -1,0 +1,67 @@
+@* Simple multi-series SVG line chart, no external charting library required. *@
+<svg viewBox="0 0 600 220" class="trend-svg" preserveAspectRatio="none">
+    @* gridlines *@
+    @for (int i = 0; i <= 4; i++)
+    {
+        var y = 10 + i * 45;
+        <line x1="30" y1="@y" x2="590" y2="@y" class="grid-line" />
+    }
+
+    @foreach (var series in SeriesList)
+    {
+        <polyline points="@BuildPoints(series.Values)" class="trend-line" style="stroke:@series.ColorHex" />
+        @for (int i = 0; i < series.Values.Count; i++)
+        {
+            var (x, y) = PointFor(i, series.Values[i]);
+            <circle cx="@x" cy="@y" r="3" style="fill:@series.ColorHex" />
+        }
+    }
+
+    @((MarkupString)AxisLabelsMarkup)
+</svg>
+
+@code {
+    public record SeriesData(string Name, string ColorHex, List<int> Values);
+
+    [Parameter, EditorRequired] public IReadOnlyList<string> Labels { get; set; } = Array.Empty<string>();
+    [Parameter, EditorRequired] public IReadOnlyList<SeriesData> SeriesList { get; set; } = Array.Empty<SeriesData>();
+
+    private const double Left = 30, Right = 590, Top = 10, Bottom = 190, MaxVal = 40;
+
+    private double XFor(int index) => Labels.Count <= 1
+        ? Left
+        : Left + (Right - Left) * index / (Labels.Count - 1);
+
+    private double YFor(int value) => Bottom - (Bottom - Top) * Math.Min(value, MaxVal) / MaxVal;
+
+    private (double x, double y) PointFor(int index, int value) => (XFor(index), YFor(value));
+
+    // Razor treats a bare <text> tag as its own special "text transition" element and
+    // won't allow attributes on it — even though here we mean the SVG <text> element.
+    // Building it as a raw string sidesteps that parser special-case.
+    private string AxisLabelsMarkup
+    {
+        get
+        {
+            var sb = new System.Text.StringBuilder();
+            for (int i = 0; i < Labels.Count; i++)
+            {
+                var x = XFor(i);
+                var label = System.Net.WebUtility.HtmlEncode(Labels[i]);
+                sb.Append($"<text x=\"{x.ToString(System.Globalization.CultureInfo.InvariantCulture)}\" y=\"212\" class=\"axis-label\">{label}</text>");
+            }
+            return sb.ToString();
+        }
+    }
+
+    private string BuildPoints(List<int> values)
+    {
+        var pts = new List<string>();
+        for (int i = 0; i < values.Count; i++)
+        {
+            var (x, y) = PointFor(i, values[i]);
+            pts.Add($"{x:0.##},{y:0.##}");
+        }
+        return string.Join(" ", pts);
+    }
+}
